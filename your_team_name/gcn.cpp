@@ -69,7 +69,7 @@ void edgeNormalization() {
       edge_val[i].push_back(val);
     }
   }
-}初始化
+}
 // in
 void readFloat(char *fname, float *&dst, int num) {
   dst = (float *)malloc(num * sizeof(float));
