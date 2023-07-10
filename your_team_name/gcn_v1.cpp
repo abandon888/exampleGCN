@@ -87,6 +87,22 @@ void raw_graph_to_CSR() {
   delete[] row_ptr;
   delete[] col_ind;
 }
+// 转化为邻接表格式
+void raw_graph_to_AdjacencyList() {
+  int src;
+  int dst;
+
+  edge_index.resize(v_num);
+  edge_val.resize(v_num);
+  degree.resize(v_num, 0);
+
+  for (int i = 0; i < raw_graph.size() / 2; i++) {
+    src = raw_graph[2 * i];
+    dst = raw_graph[2 * i + 1];
+    edge_index[dst].push_back(src);
+    degree[src]++;
+  }
+}
 
 void edgeNormalization() { //对边进行归一化
   edge_val.resize(v_num); // edge_val[i][j]表示节点i到节点edge_index[i][j]的边的权重
@@ -199,6 +215,7 @@ void freeFloats() {
 }
 
 void somePreprocessing() {
+  raw_graph_to_AdjacencyList(); //将原始图转化为邻接表
   raw_graph_to_CSR(); //将原始图转化为CSR
 }
 
