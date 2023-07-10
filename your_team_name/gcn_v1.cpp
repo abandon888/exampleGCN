@@ -24,6 +24,7 @@ vector<vector<float>> edge_val; //edge_val[i][j]表示节点i到节点edge_index
 vector<int> degree; //degree[i]表示节点i的度
 vector<int> raw_graph; //raw_graph[i]表示边的起点和终点
 
+
 float *X0, *W1, *W2, *X1, *X1_inter, *X2, *X2_inter; //分别表示输入层的特征矩阵，第一层的权重矩阵，第二层的权重矩阵，第一层的特征矩阵，第一层的特征矩阵的中间结果，第二层的特征矩阵，第二层的特征矩阵的中间结果
 
 
@@ -50,43 +51,39 @@ void readGraph(char *fname) { //读取图的节点和边的信息，存储为邻
 }
 // 转化为CSR格式
 void raw_graph_to_CSR() {
-  int src, dst; // src表示边的起点，dst表示边的终点
+  vector<int> row_ptr;
+  vector<int> col_ind;
+  vector<float> val;
+  int num_edges = raw_graph.size() / 2;
+  int num_vertices = *std::max_element(raw_graph.begin(), raw_graph.end()) + 1;
 
-  // Allocate memory for CSR arrays
-  int* row_ptr = new int[v_num + 1];
-  int* col_ind = new int[e_num];
-  float* val = new float[e_num];
+  // 计算每个顶点的度数
+  degree.resize(num_vertices, 0);
+  for (int i = 0; i < num_edges; i++) {
+    int src = raw_graph[2 * i];
+    degree[src]++;
+  }
 
-  // Compute row_ptr and col_ind arrays
+  // 计算行指针数组
+  row_ptr.resize(num_vertices + 1);
   row_ptr[0] = 0;
-  for (int i = 0; i < v_num; i++) {
+  for (int i = 0; i < num_vertices; i++) {
     row_ptr[i + 1] = row_ptr[i] + degree[i];
-    for (int j = 0; j < edge_index[i].size(); j++) {
-      src = edge_index[i][j];
-      col_ind[row_ptr[i] + j] = src;
-      val[row_ptr[i] + j] = edge_val[i][j];
-    }
   }
 
-  // Free memory for old edge_index and edge_val arrays
-  for (int i = 0; i < v_num; i++) {
-    edge_index[i].clear();
-    edge_val[i].clear();
+  // 计算列索引和值数组
+  col_ind.resize(num_edges);
+  val.resize(num_edges);
+  std::vector<int> next(num_vertices, 0);
+  for (int i = 0; i < num_edges; i++) {
+    int src = raw_graph[2 * i];
+    int dst = raw_graph[2 * i + 1];
+    col_ind[row_ptr[src] + next[src]] = dst;
+    val[row_ptr[src] + next[src]] = 1.0; // 将所有边的权重设置为1.0
+    next[src]++;
   }
-  edge_index.clear();
-  edge_val.clear();
-
-  // Update global variables
-  delete[] degree.data();
-  degree.shrink_to_fit();
-  degree = vector<int>(row_ptr + 1, row_ptr + v_num + 1);
-  edge_index = vector<vector<int>>(col_ind, col_ind + e_num);
-  edge_val = vector<vector<float>>(val, val + e_num);
-
-  // Free memory for CSR arrays
-  delete[] row_ptr;
-  delete[] col_ind;
 }
+
 // 转化为邻接表格式
 void raw_graph_to_AdjacencyList() {
   int src;
@@ -215,7 +212,7 @@ void freeFloats() {
 }
 
 void somePreprocessing() {
-  raw_graph_to_AdjacencyList(); //将原始图转化为邻接表
+  //raw_graph_to_AdjacencyList(); //将原始图转化为邻接表
   raw_graph_to_CSR(); //将原始图转化为CSR
 }
 
