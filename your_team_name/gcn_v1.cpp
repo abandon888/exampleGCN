@@ -28,35 +28,7 @@ float *X0, *W1, *W2, *X1, *X1_inter, *X2, *X2_inter; //分别表示输入层的�
 
 
 
-//constructs an adjacency list in the CSR format from a raw graph
-void construct_adjacency_list_csr(const std::vector<int>& raw_graph, std::vector<int>& row_ptr, std::vector<int>& col_idx) {
-  int num_edges = raw_graph.size() / 2;
-  int num_vertices = *std::max_element(raw_graph.begin(), raw_graph.end()) + 1;
 
-  // Compute the degree of each vertex
-  std::vector<int> degree(num_vertices, 0);
-  for (int i = 0; i < num_edges; i++) {
-    int src = raw_graph[2 * i];
-    degree[src]++;
-  }
-
-  // Compute the row pointer array
-  row_ptr.resize(num_vertices + 1);
-  row_ptr[0] = 0;
-  for (int i = 0; i < num_vertices; i++) {
-    row_ptr[i + 1] = row_ptr[i] + degree[i];
-  }
-
-  // Compute the column index array
-  col_idx.resize(num_edges);
-  std::vector<int> next(num_vertices, 0);
-  for (int i = 0; i < num_edges; i++) {
-    int src = raw_graph[2 * i];
-    int dst = raw_graph[2 * i + 1];
-    col_idx[row_ptr[src] + next[src]] = dst;
-    next[src]++;
-  }
-}
 
 //readGraph(char* fname)：从文件中读取图的节点和边的信息，存储为邻接表形式(不进行修改)
 void readGraph(char *fname) { //读取图的节点和边的信息，存储为邻接表形式
@@ -76,25 +48,44 @@ void readGraph(char *fname) { //读取图的节点和边的信息，存储为邻
     raw_graph.push_back(end); //将边的终点存储到raw_graph中
   }
 }
+// 转化为CSR格式
+void raw_graph_to_CSR() {
+  int src, dst; // src表示边的起点，dst表示边的终点
 
-//将边信息转化为邻接表形式的图结构，也就是这里面的edge_index和degree
-void raw_graph_to_AdjacencyList() {
-  int src; //src表示边的起点
-  int dst; //dst表示边的终点
+  // Allocate memory for CSR arrays
+  int* row_ptr = new int[v_num + 1];
+  int* col_ind = new int[e_num];
+  float* val = new float[e_num];
 
-  edge_index.resize(v_num);// edge_index[i][j]表示节点i的第j个邻居节点
-  degree.resize(v_num, 0); // degree[i]表示节点i的度
-
-#pragma omp parallel for private(src, dst) shared(raw_graph, edge_index, degree)
-  for (int i = 0; i < raw_graph.size() / 2; i++) { //遍历所有的边
-    src = raw_graph[2 * i]; //src表示边的起点
-    dst = raw_graph[2 * i + 1]; //dst表示边的终点
-#pragma omp critical
-    {
-      edge_index[dst].push_back(src); //将边的起点存储到edge_index中
-      degree[src]++; //将边的起点的度加1
+  // Compute row_ptr and col_ind arrays
+  row_ptr[0] = 0;
+  for (int i = 0; i < v_num; i++) {
+    row_ptr[i + 1] = row_ptr[i] + degree[i];
+    for (int j = 0; j < edge_index[i].size(); j++) {
+      src = edge_index[i][j];
+      col_ind[row_ptr[i] + j] = src;
+      val[row_ptr[i] + j] = edge_val[i][j];
     }
-  } 
+  }
+
+  // Free memory for old edge_index and edge_val arrays
+  for (int i = 0; i < v_num; i++) {
+    edge_index[i].clear();
+    edge_val[i].clear();
+  }
+  edge_index.clear();
+  edge_val.clear();
+
+  // Update global variables
+  delete[] degree.data();
+  degree.shrink_to_fit();
+  degree = vector<int>(row_ptr + 1, row_ptr + v_num + 1);
+  edge_index = vector<vector<int>>(col_ind, col_ind + e_num);
+  edge_val = vector<vector<float>>(val, val + e_num);
+
+  // Free memory for CSR arrays
+  delete[] row_ptr;
+  delete[] col_ind;
 }
 
 void edgeNormalization() { //对边进行归一化
@@ -208,9 +199,7 @@ void freeFloats() {
 }
 
 void somePreprocessing() {
-  // The graph  will be transformed into adjacency list, you can use other data
-  // structure such as CSR
-  raw_graph_to_AdjacencyList(); //将原始图转化为邻接表
+  raw_graph_to_CSR(); //将原始图转化为CSR
 }
 
 int main(int argc, char **argv) {
