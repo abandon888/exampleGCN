@@ -9,6 +9,7 @@
 #include <iostream> //cout
 #include <sstream> //stringstream
 #include <vector> //vector
+#include <algorithm>
 
 using namespace std; 
 
@@ -25,7 +26,38 @@ vector<int> raw_graph; //raw_graph[i]表示边的起点和终点
 
 float *X0, *W1, *W2, *X1, *X1_inter, *X2, *X2_inter; //分别表示输入层的特征矩阵，第一层的权重矩阵，第二层的权重矩阵，第一层的特征矩阵，第一层的特征矩阵的中间结果，第二层的特征矩阵，第二层的特征矩阵的中间结果
 
-//readGraph(char* fname)：从文件中读取图的节点和边的信息，存储为邻接表形式
+
+
+
+void construct_adjacency_list_csr(const std::vector<int>& raw_graph, std::vector<int>& row_ptr, std::vector<int>& col_idx) {
+  int num_edges = raw_graph.size() / 2;
+  int num_vertices = *std::max_element(raw_graph.begin(), raw_graph.end()) + 1;
+
+  // Compute the degree of each vertex
+  std::vector<int> degree(num_vertices, 0);
+  for (int i = 0; i < num_edges; i++) {
+    int src = raw_graph[2 * i];
+    degree[src]++;
+  }
+
+  // Compute the row pointer array
+  row_ptr.resize(num_vertices + 1);
+  row_ptr[0] = 0;
+  for (int i = 0; i < num_vertices; i++) {
+    row_ptr[i + 1] = row_ptr[i] + degree[i];
+  }
+
+  // Compute the column index array
+  col_idx.resize(num_edges);
+  std::vector<int> next(num_vertices, 0);
+  for (int i = 0; i < num_edges; i++) {
+    int src = raw_graph[2 * i];
+    int dst = raw_graph[2 * i + 1];
+    col_idx[row_ptr[src] + next[src]] = dst;
+    next[src]++;
+  }
+}
+//readGraph(char* fname)：从文件中读取图的节点和边的信息，存储为邻接表形式(不进行修改)
 void readGraph(char *fname) { //读取图的节点和边的信息，存储为邻接表形式
   ifstream infile(fname); //打开文件
 
@@ -50,28 +82,36 @@ void raw_graph_to_AdjacencyList() {
   int dst; //dst表示边的终点
 
   edge_index.resize(v_num);// edge_index[i][j]表示节点i的第j个邻居节点
-  edge_val.resize(v_num); // edge_val[i][j]表示节点i到节点edge_index[i][j]的边的权重
   degree.resize(v_num, 0); // degree[i]表示节点i的度
 
-  //为什么是2*i和2*i+1？因为raw_graph中存储的是边的起点和终点，所以每两个元素表示一条边
+#pragma omp parallel for private(src, dst) shared(raw_graph, edge_index, degree)
   for (int i = 0; i < raw_graph.size() / 2; i++) { //遍历所有的边
     src = raw_graph[2 * i]; //src表示边的起点
     dst = raw_graph[2 * i + 1]; //dst表示边的终点
-    edge_index[dst].push_back(src); //将边的起点存储到edge_index中
-    degree[src]++; //将边的起点的度加1
+#pragma omp critical
+    {
+      edge_index[dst].push_back(src); //将边的起点存储到edge_index中
+      degree[src]++; //将边的起点的度加1
+    }
   } 
 }
 
 void edgeNormalization() { //对边进行归一化
+  edge_val.resize(v_num); // edge_val[i][j]表示节点i到节点edge_index[i][j]的边的权重
+
+#pragma omp parallel for
   for (int i = 0; i < v_num; i++) { //遍历所有的节点
     for (int j = 0; j < edge_index[i].size(); j++) { //遍历节点i的所有邻居节点
       float val = 1 / sqrt(degree[i]) / sqrt(degree[edge_index[i][j]]); //计算边的权重
-      edge_val[i].push_back(val); //将边的权重存储到edge_val中
+#pragma omp critical
+      {
+        edge_val[i].push_back(val); //将边的权重存储到edge_val中
+      }
     }
   }
 }
-
-void readFloat(char *fname, float *&dst, int num) { //从文件中读取float类型的数据
+//从文件中读取float类型的数据(不进行修改)
+void readFloat(char *fname, float *&dst, int num) { 
   dst = (float *)malloc(num * sizeof(float)); //为dst分配内存
   FILE *fp = fopen(fname, "rb"); //打开文件
   fread(dst, num * sizeof(float), 1, fp); //读取数据
