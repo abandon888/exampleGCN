@@ -28,7 +28,7 @@ float *X0, *W1, *W2, *X1, *X1_inter, *X2, *X2_inter; //分别表示输入层的�
 
 
 
-
+//constructs an adjacency list in the CSR format from a raw graph
 void construct_adjacency_list_csr(const std::vector<int>& raw_graph, std::vector<int>& row_ptr, std::vector<int>& col_idx) {
   int num_edges = raw_graph.size() / 2;
   int num_vertices = *std::max_element(raw_graph.begin(), raw_graph.end()) + 1;
@@ -57,6 +57,7 @@ void construct_adjacency_list_csr(const std::vector<int>& raw_graph, std::vector
     next[src]++;
   }
 }
+
 //readGraph(char* fname)：从文件中读取图的节点和边的信息，存储为邻接表形式(不进行修改)
 void readGraph(char *fname) { //读取图的节点和边的信息，存储为邻接表形式
   ifstream infile(fname); //打开文件
